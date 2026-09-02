@@ -1,0 +1,48 @@
+:host {
+  --muted: var(--st-text-color, #667085);
+  --surface: var(--st-secondary-background-color, #fff);
+  --border: color-mix(in srgb, var(--st-text-color, #344054) 24%, transparent);
+  --track: color-mix(in srgb, var(--st-text-color, #344054) 12%, transparent);
+  --accent: var(--st-primary-color, #08a8b5);
+  display: block;
+}
+* { box-sizing: border-box; }
+.distribution-root { color: var(--st-text-color, #1f2937); font: 14px/1.35 system-ui, sans-serif; padding: 4px 2px 8px; }
+button, input { font: inherit; }
+.toolbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 14px; }
+.toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.toggle button, .equal-button { border: 0; background: transparent; color: var(--muted); padding: 7px 11px; cursor: pointer; }
+.toggle button.active { background: var(--accent); color: white; }
+.equal-button { border: 1px solid var(--border); border-radius: 9px; color: inherit; }
+.segmented-wrap { position: relative; height: 42px; margin: 5px 10px 16px; }
+.segmented-track { position: absolute; inset: 9px 0 auto; height: 24px; border-radius: 12px; overflow: hidden; }
+.boundary { position: absolute; inset: 0; width: 100%; height: 42px; margin: 0; appearance: none; background: transparent; pointer-events: none; }
+.boundary::-webkit-slider-runnable-track { height: 24px; background: transparent; }
+.boundary::-webkit-slider-thumb { appearance: none; width: 18px; height: 34px; margin-top: -5px; border-radius: 9px; background: white; border: 3px solid var(--accent); box-shadow: 0 1px 4px #0005; pointer-events: auto; cursor: ew-resize; }
+.boundary::-moz-range-track { height: 24px; background: transparent; }
+.boundary::-moz-range-thumb { width: 14px; height: 30px; border-radius: 9px; background: white; border: 3px solid var(--accent); pointer-events: auto; cursor: ew-resize; }
+.rows { display: grid; gap: 8px; }
+.option-row { display: grid; grid-template-columns: minmax(130px, 1fr) 104px 130px; gap: 12px; align-items: center; }
+.option-name { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
+.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.value { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.number-wrap { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.number-wrap input { width: 100%; min-width: 0; padding: 6px 7px; border: 0; outline: 0; background: transparent; color: inherit; text-align: right; }
+.unit { padding-right: 8px; color: var(--muted); }
+.multi-row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(240px, 3fr) 104px 130px; gap: 12px; align-items: center; }
+.bar-wrap { position: relative; height: 28px; }
+.bar-track, .bar-fill { position: absolute; left: 0; top: 7px; height: 14px; border-radius: 7px; }
+.bar-track { right: 0; background: var(--track); }
+.multi-range { position: absolute; inset: 0; width: 100%; margin: 0; appearance: none; background: transparent; }
+.multi-range::-webkit-slider-runnable-track { height: 14px; background: transparent; }
+.multi-range::-webkit-slider-thumb { appearance: none; width: 18px; height: 24px; margin-top: -5px; border-radius: 8px; background: white; border: 3px solid var(--accent); box-shadow: 0 1px 3px #0004; cursor: ew-resize; }
+.multi-range::-moz-range-track { height: 14px; background: transparent; }
+.multi-range::-moz-range-thumb { width: 14px; height: 20px; border-radius: 8px; background: white; border: 3px solid var(--accent); cursor: ew-resize; }
+.summary { margin-top: 12px; color: var(--muted); }
+.warning { margin-top: 10px; padding: 9px 11px; border-radius: 8px; background: #fff3cd; color: #7a4b00; }
+@media (max-width: 720px) {
+  .option-row, .multi-row { grid-template-columns: minmax(100px, 1fr) 92px; }
+  .multi-row .bar-wrap { grid-column: 1 / -1; grid-row: 2; }
+  .option-row .value, .multi-row .value { display: none; }
+}

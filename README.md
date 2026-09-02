@@ -81,6 +81,10 @@ de Python y permite actualizar las dependencias y Chromium normalmente.
 9. Ejecute **Validar primera respuesta sin enviar**.
 10. Confirme el envío completo solamente si la validación es correcta.
 
+> Es recomendado que desactive la opción: "Recopilar direcciones de
+> correo electrónico", localizado en las configuraciones del
+> formulario
+
 ## Distribuciones y granularidad
 
 En selección única y escalas, la distribución siempre suma el tamaño completo

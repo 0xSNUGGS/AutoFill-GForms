@@ -42,13 +42,12 @@ Clone o descargue este repositorio y abra PowerShell en su carpeta raíz. No cop
 
 ```powershell
 py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m playwright install chromium
+py -m pip install --upgrade pip
+py -m pip install -r requirements.txt
+py -m playwright install chromium
 ```
 
-Si `py` no está disponible pero `python` sí, use `python -m venv .venv` en el
-primer comando. Los demás comandos no cambian.
+Si `py` no está disponible pero `python` sí, use `python -m venv .venv`
 
 ## Ejecución
 
@@ -60,7 +59,7 @@ la aplicación. Streamlit abrirá normalmente `http://localhost:8501`; presione
 También puede iniciarla directamente desde PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m streamlit run app.py
+py -m streamlit run app.py
 ```
 
 `FormsScript.exe` es un lanzador para Windows, no una distribución autónoma:
@@ -122,7 +121,7 @@ pueden contener respuestas; trátelos como información privada.
 Para ejecutar todas las pruebas automatizadas:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+py -m unittest discover -s tests -v
 ```
 
 ## Reconstruir el ejecutable

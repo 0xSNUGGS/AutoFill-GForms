@@ -13,6 +13,7 @@ import streamlit as st
 
 from src.authorization import authorize_form, is_authorized, validate_form_url
 from src.form_runner import FormAutomationError, run_responses
+from src.form_parser import FormParsingError, parse_google_form_url
 from src.distribution_component import distribution_editor, register_distribution_component
 from src.generator import (
     ConfigurationError,
@@ -35,6 +36,7 @@ KIND_LABELS = {
     "single": "Selección única",
     "multiple": "Selección múltiple",
     "linear": "Escala lineal",
+    "grid": "Cuadrícula de opción múltiple",
     "text": "Texto corto",
     "paragraph": "Párrafo",
 }
@@ -60,6 +62,18 @@ def default_config(question: Question) -> dict:
             "minimum": 1 if question.required else 0,
             "maximum": max(1, len(question.options)),
             "other_values": [],
+        }
+    if question.kind == "grid":
+        return {
+            "row_configs": {
+                row: {
+                    "mode": "percentage",
+                    "weights": equal_weights(question.options),
+                    "counts": {},
+                    "other_values": [],
+                }
+                for row in question.rows
+            }
         }
     return {"values": []}
 
@@ -87,6 +101,28 @@ def sync_configs(questions: list[Question]) -> None:
             del configs[key]
     for question in questions:
         current = configs.setdefault(question.id, default_config(question))
+        if question.kind == "grid":
+            row_configs = current.setdefault("row_configs", {})
+            for row in list(row_configs):
+                if row not in question.rows:
+                    del row_configs[row]
+            defaults = default_config(question)["row_configs"]
+            for row in question.rows:
+                row_config = row_configs.setdefault(row, defaults[row])
+                weights = row_config.setdefault("weights", {})
+                counts = row_config.setdefault("counts", {})
+                row_config.setdefault("mode", "percentage")
+                for option in list(weights):
+                    if option not in question.options:
+                        del weights[option]
+                for option in list(counts):
+                    if option not in question.options:
+                        del counts[option]
+                row_defaults = defaults[row]["weights"]
+                for option in question.options:
+                    weights.setdefault(option, row_defaults.get(option, 0.0))
+                    counts.setdefault(option, 0)
+            continue
         if question.kind in ("single", "linear", "multiple"):
             weights = current.setdefault("weights", {})
             counts = current.setdefault("counts", {})
@@ -118,7 +154,7 @@ def distribution_component_key(question: Question, sample_size: int) -> str:
     signature = uuid.uuid5(
         uuid.NAMESPACE_URL,
         json.dumps(
-            [question.kind, question.required, question.options],
+            [question.kind, question.required, question.options, question.rows],
             ensure_ascii=False,
             separators=(",", ":"),
         ),
@@ -151,7 +187,7 @@ def _graphical_counts(question: Question, config: dict, sample_size: int) -> dic
     """Return integer counts and migrate older percentage configurations."""
 
     previous_total = max(1, int(config.get("basis_total", sample_size)))
-    if question.kind in ("single", "linear"):
+    if question.kind in ("single", "linear", "grid"):
         keys = list(question.options)
         if not question.required:
             keys.append(UNANSWERED_KEY)
@@ -204,7 +240,7 @@ def _store_graphical_counts(
         option: round(config["counts"][option] * 100 / sample_size, 8)
         for option in question.options
     }
-    if question.kind in ("single", "linear"):
+    if question.kind in ("single", "linear", "grid"):
         config["unanswered_count"] = (
             min(sample_size, max(0, int(counts.get(UNANSWERED_KEY, 0))))
             if not question.required
@@ -221,7 +257,12 @@ def response_exports(questions: list[Question], profiles: list[dict]) -> tuple[b
         row = [profile["index"]]
         for question in questions:
             answer = profile["answers"].get(question.id, {})
-            if "selected" in answer:
+            if "grid" in answer:
+                value = " | ".join(
+                    f"{grid_row}: {answer['grid'].get(grid_row, 'Sin respuesta')}"
+                    for grid_row in question.rows
+                )
+            elif "selected" in answer:
                 value = " | ".join(answer["selected"])
                 if answer.get("other_text"):
                     value += f": {answer['other_text']}"
@@ -357,7 +398,7 @@ def render_inline_conditions(
     targets = [
         question
         for question in all_questions[source_position + 1 :]
-        if question.id != source.id and question.kind != "multiple"
+        if question.id != source.id and question.kind not in ("multiple", "grid")
     ]
     if not targets:
         st.info("No hay preguntas posteriores compatibles para condicionar.")
@@ -495,13 +536,21 @@ def render_question_editor(question: Question, sample_size: int, all_questions: 
             required = st.checkbox("Obligatoria", question.required, key=f"required_{question.id}")
             condition_slot = st.container()
         options = question.options
-        if kind in ("single", "multiple", "linear"):
+        rows = question.rows
+        if kind in ("single", "multiple", "linear", "grid"):
             raw_options = st.text_area(
-                "Opciones, una por línea",
+                "Columnas, una por línea" if kind == "grid" else "Opciones, una por línea",
                 "\n".join(options),
                 key=f"options_{question.id}",
             )
             options = [item.strip() for item in raw_options.splitlines() if item.strip()]
+        if kind == "grid":
+            raw_rows = st.text_area(
+                "Filas, una por línea",
+                "\n".join(rows),
+                key=f"rows_{question.id}",
+            )
+            rows = [item.strip() for item in raw_rows.splitlines() if item.strip()]
         scale_min_label = getattr(question, "scale_min_label", "")
         scale_max_label = getattr(question, "scale_max_label", "")
         if kind == "linear":
@@ -528,18 +577,22 @@ def render_question_editor(question: Question, sample_size: int, all_questions: 
             section=question.section,
             scale_min_label=scale_min_label.strip() if kind == "linear" else "",
             scale_max_label=scale_max_label.strip() if kind == "linear" else "",
+            rows=rows if kind == "grid" else [],
         )
         with condition_slot:
-            condition_count = sum(
-                1
-                for value in st.session_state.conditions
-                if condition_from_value(value).trigger_question_id == updated.id
-            )
-            with st.popover(
-                f"Condiciones por opción ({condition_count})",
-                use_container_width=True,
-            ):
-                render_inline_conditions(updated, all_questions, sample_size)
+            if kind == "grid":
+                st.caption("Las condiciones no están disponibles para cuadrículas.")
+            else:
+                condition_count = sum(
+                    1
+                    for value in st.session_state.conditions
+                    if condition_from_value(value).trigger_question_id == updated.id
+                )
+                with st.popover(
+                    f"Condiciones por opción ({condition_count})",
+                    use_container_width=True,
+                ):
+                    render_inline_conditions(updated, all_questions, sample_size)
         sync_configs([updated] + [q for q in current_questions() if q.id != updated.id])
         config = st.session_state.configs[question.id]
         if kind in ("single", "linear"):
@@ -637,6 +690,60 @@ def render_question_editor(question: Question, sample_size: int, all_questions: 
                 )
                 if changed:
                     st.rerun()
+        elif kind == "grid":
+            if not options or not rows:
+                st.warning("La cuadrícula necesita al menos una fila y una columna.")
+            else:
+                st.caption(
+                    f"Cada fila tiene una distribución exclusiva · 1 respuesta equivale a "
+                    f"{format_percentage(100 / sample_size)}%."
+                )
+                row_configs = config.setdefault("row_configs", {})
+                for grid_row in rows:
+                    st.markdown(f"**{grid_row}**")
+                    row_config = row_configs.setdefault(
+                        grid_row,
+                        {
+                            "mode": "percentage",
+                            "weights": equal_weights(options),
+                            "counts": {},
+                        },
+                    )
+                    counts = _graphical_counts(updated, row_config, sample_size)
+                    _store_graphical_counts(
+                        updated,
+                        row_config,
+                        counts,
+                        sample_size,
+                        str(row_config.get("display_mode", "percentage")),
+                    )
+                    graphical_options = [{"key": option, "label": option} for option in options]
+                    if not required:
+                        graphical_options.append({"key": UNANSWERED_KEY, "label": "Sin responder"})
+                    row_key = uuid.uuid5(uuid.NAMESPACE_URL, grid_row).hex[:10]
+                    result = distribution_editor(
+                        kind="exclusive",
+                        options=graphical_options,
+                        counts=counts,
+                        total=sample_size,
+                        input_mode=str(row_config.get("display_mode", "percentage")),
+                        key=f"{distribution_component_key(updated, sample_size)}_{row_key}",
+                    )
+                    if result:
+                        result_counts = result.get("counts", counts)
+                        result_mode = str(result.get("inputMode", "percentage"))
+                        changed = result_counts != counts or result_mode != str(
+                            row_config.get("display_mode", "percentage")
+                        )
+                        _store_graphical_counts(
+                            updated,
+                            row_config,
+                            result_counts,
+                            sample_size,
+                            result_mode,
+                        )
+                        if changed:
+                            st.rerun()
         else:
             raw_values = st.text_area(
                 "Respuestas separadas por punto y coma (cada aparición se usa una vez)",
@@ -692,6 +799,7 @@ def current_questions() -> list[Question]:
                         "kind": getattr(value, "kind", "text"),
                         "required": getattr(value, "required", False),
                         "options": getattr(value, "options", []),
+                        "rows": getattr(value, "rows", []),
                         "section": getattr(value, "section", "General"),
                     }
                 )
@@ -806,9 +914,30 @@ with st.container(border=True):
         f"Con esta muestra, una respuesta equivale a {format_percentage(100 / int(sample_size))}%. "
         "Puedes cambiarla después y las distribuciones se recalcularán."
     )
-    form_url = st.text_input("Enlace público para responder el Google Form", placeholder="https://docs.google.com/forms/d/e/.../viewform")
-    uploaded_pdf = st.file_uploader("PDF exportado desde Google Forms", type=("pdf",))
-    if st.button("Analizar PDF", type="primary", disabled=uploaded_pdf is None):
+    form_url = st.text_input(
+        "Enlace de Google Forms (público o de edición)",
+        placeholder="https://docs.google.com/forms/d/.../edit",
+    )
+    uploaded_pdf = st.file_uploader(
+        "PDF exportado desde Google Forms (opcional si analiza el enlace)",
+        type=("pdf",),
+    )
+    analyze_link, analyze_pdf = st.columns(2)
+    if analyze_link.button("Analizar formulario", type="primary", disabled=not form_url):
+        try:
+            questions, public_url = parse_google_form_url(form_url)
+            st.session_state.questions = [question.to_dict() for question in questions]
+            st.session_state.configs = {question.id: default_config(question) for question in questions}
+            st.session_state.conditions = []
+            st.session_state.profiles = []
+            st.session_state.preview_images = (
+                render_pdf_preview(uploaded_pdf.getvalue()) if uploaded_pdf is not None else []
+            )
+            st.session_state["resolved_form_url"] = public_url
+            st.success(f"Se detectaron {len(questions)} preguntas desde el formulario.")
+        except (FormParsingError, ValueError) as error:
+            st.error(f"No fue posible interpretar el formulario: {error}")
+    if analyze_pdf.button("Analizar solo el PDF", disabled=uploaded_pdf is None):
         try:
             pdf_bytes = uploaded_pdf.getvalue()
             questions = parse_google_forms_pdf(pdf_bytes)
@@ -822,6 +951,9 @@ with st.container(border=True):
             st.success(f"Se detectaron {len(questions)} preguntas.")
         except Exception as error:
             st.error(f"No fue posible interpretar el PDF: {error}")
+    resolved_form_url = st.session_state.get("resolved_form_url", "")
+    if resolved_form_url and resolved_form_url != form_url:
+        st.caption(f"Enlace público resuelto: {resolved_form_url}")
 
 questions = current_questions()
 if st.session_state.preview_images:

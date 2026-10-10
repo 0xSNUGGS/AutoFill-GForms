@@ -93,6 +93,39 @@ class AppSmokeTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertTrue(any("exactamente 10 respuestas" in item.value for item in app.success))
 
+    def test_grid_question_editor_and_generation_render(self):
+        app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"))
+        app.run(timeout=20)
+        app.number_input[0].set_value(10)
+        app.session_state["questions"] = [
+            {
+                "id": "q1",
+                "number": 1,
+                "title": "Valore cada métrica",
+                "kind": "grid",
+                "required": True,
+                "options": ["1 — Bajo", "2 — Alto"],
+                "rows": ["Velocidad", "Resistencia"],
+                "section": "General",
+            }
+        ]
+        app.session_state["configs"] = {
+            "q1": {
+                "row_configs": {
+                    "Velocidad": {"mode": "count", "counts": {"1 — Bajo": 4, "2 — Alto": 6}, "basis_total": 10},
+                    "Resistencia": {"mode": "count", "counts": {"1 — Bajo": 7, "2 — Alto": 3}, "basis_total": 10},
+                }
+            }
+        }
+        app.run(timeout=20)
+        self.assertFalse(app.exception)
+        self.assertTrue(any(field.label == "Filas, una por línea" for field in app.text_area))
+        generate = next(button for button in app.button if button.label == "Generar vista previa")
+        generate.click()
+        app.run(timeout=20)
+        self.assertFalse(app.exception)
+        self.assertTrue(any("exactamente 10 respuestas" in item.value for item in app.success))
+
     def test_legacy_question_session_is_migrated_on_reload(self):
         app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"))
         app.run(timeout=20)

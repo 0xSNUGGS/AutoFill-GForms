@@ -238,6 +238,30 @@ def _assign_text(
         profiles[row]["answers"][question.id] = {"text": values[position] if position < len(values) else ""}
 
 
+def _assign_grid(
+    question: Question,
+    config: dict[str, Any],
+    rows: list[int],
+    profiles: list[dict[str, Any]],
+    rng: random.Random,
+) -> None:
+    row_configs = config.get("row_configs", {})
+    for profile_row in rows:
+        profiles[profile_row]["answers"].setdefault(question.id, {"grid": {}})
+    for grid_row in question.rows:
+        row_config = row_configs.get(grid_row)
+        if row_config is None:
+            raise ConfigurationError(f"Falta configurar la fila '{grid_row}' de {question.title}.")
+        counts = exclusive_counts(len(rows), row_config)
+        values = [option for option, count in counts.items() for _ in range(count)]
+        shuffled_rows = list(rows)
+        rng.shuffle(values)
+        rng.shuffle(shuffled_rows)
+        for profile_row, value in zip(shuffled_rows, values, strict=True):
+            if value != UNANSWERED_KEY:
+                profiles[profile_row]["answers"][question.id]["grid"][grid_row] = value
+
+
 def _assign(
     question: Question,
     config: dict[str, Any],
@@ -251,6 +275,8 @@ def _assign(
         _assign_single(question, config, rows, profiles, rng)
     elif question.kind == "multiple":
         _assign_multiple(question, config, rows, profiles, rng)
+    elif question.kind == "grid":
+        _assign_grid(question, config, rows, profiles, rng)
     else:
         _assign_text(question, config, rows, profiles, rng)
 
@@ -467,6 +493,8 @@ def generate_responses(
         if config is None:
             raise ConfigurationError(f"Falta configurar la pregunta: {question.title}")
         rules = target_rules.get(question_id, [])
+        if rules and question.kind == "grid":
+            raise ConfigurationError("Las condiciones todavía no están disponibles para cuadrículas.")
         if rules and question.kind in ("single", "linear"):
             _assign_conditioned_exclusive(question, config, rules, profiles, rng)
         elif rules and question.kind in ("text", "paragraph"):
@@ -488,6 +516,22 @@ def summarize(questions: list[Question], profiles: list[dict[str, Any]]) -> list
     rows: list[dict[str, Any]] = []
     total = len(profiles)
     for question in questions:
+        if question.kind == "grid":
+            for grid_row in question.rows:
+                counter: Counter[str] = Counter()
+                for profile in profiles:
+                    value = profile["answers"].get(question.id, {}).get("grid", {}).get(grid_row)
+                    counter[value or "Sin respuesta"] += 1
+                for option, count in counter.items():
+                    rows.append(
+                        {
+                            "Pregunta": f"{question.title[:65]} — {grid_row[:45]}",
+                            "Respuesta": option,
+                            "Cantidad": count,
+                            "Porcentaje": round(count * 100 / total, 2) if total else 0,
+                        }
+                    )
+            continue
         counter: Counter[str] = Counter()
         answered = 0
         for profile in profiles:

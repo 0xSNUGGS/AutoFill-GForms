@@ -70,6 +70,7 @@ def _finalize(raw: dict | None, questions: list[Question]) -> None:
             section=raw["section"],
             scale_min_label=str(raw.get("scale_min_label", "")),
             scale_max_label=str(raw.get("scale_max_label", "")),
+            rows=[_clean(row) for row in raw.get("rows", []) if _clean(row)],
         )
     )
 
@@ -106,10 +107,16 @@ def parse_google_forms_pdf(source: bytes | BinaryIO) -> list[Question]:
                         "section": current_section,
                         "scale_min_label": "",
                         "scale_max_label": "",
+                        "rows": [],
+                        "grid_columns_collected": False,
                     }
                     collecting_options = False
                     continue
                 if current is None:
+                    continue
+                if line.startswith("Marca solo un óvalo por fila") or line.startswith("Marca solo un ovalo por fila"):
+                    current["kind"] = "grid"
+                    collecting_options = True
                     continue
                 if line.startswith("Marca solo un óvalo") or line.startswith("Marca solo un ovalo"):
                     current["kind"] = "single"
@@ -122,6 +129,20 @@ def parse_google_forms_pdf(source: bytes | BinaryIO) -> list[Question]:
                 if line.startswith("Salta a la pregunta"):
                     continue
                 if collecting_options:
+                    if current["kind"] == "grid":
+                        parts = [
+                            _clean(part)
+                            for part in re.split(r"\s{2,}", raw_line.strip())
+                            if _clean(part)
+                        ]
+                        if not current["grid_columns_collected"] and len(parts) >= 2:
+                            current["options"].extend(parts)
+                            current["grid_columns_collected"] = True
+                        elif current["grid_columns_collected"]:
+                            current["rows"].append(line)
+                        else:
+                            current["options"].append(line)
+                        continue
                     if SCALE_RE.fullmatch(line):
                         current["kind"] = "linear"
                         current["options"] = line.split()

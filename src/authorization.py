@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -23,7 +23,12 @@ def validate_form_url(url: str) -> str:
     if not allowed:
         raise ValueError("Debe indicar un enlace HTTPS público de Google Forms.")
     if "/edit" in parsed.path:
-        raise ValueError("Use el enlace para responder, no el enlace de edición.")
+        parsed = parsed._replace(
+            path=parsed.path.replace("/edit", "/viewform", 1),
+            query="",
+            fragment="",
+        )
+        return urlunparse(parsed)
     return value
 
 

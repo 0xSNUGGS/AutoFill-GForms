@@ -24,6 +24,11 @@ Marca solo un óvalo.
 1  2  3  4  5
 Muy difícil          Muy fácil
 4. 4. Comentario adicional (Opcional)
+5. 5. Valore cada aspecto *
+Marca solo un óvalo por fila.
+1 — Bajo          2 — Alto
+Velocidad
+Resistencia
 https://docs.google.com/forms/d/example/edit
 1/1
 """
@@ -48,7 +53,7 @@ class PdfParserTests(unittest.TestCase):
     @patch("src.pdf_parser.pdfplumber.open", return_value=FakeDocument())
     def test_google_forms_export_is_recognized(self, _open):
         questions = parse_google_forms_pdf(io.BytesIO(b"fake"))
-        self.assertEqual(len(questions), 4)
+        self.assertEqual(len(questions), 5)
         self.assertEqual(questions[0].kind, "single")
         self.assertEqual(questions[0].options, ["Siempre.", "A veces.", "Nunca."])
         self.assertEqual(questions[1].kind, "multiple")
@@ -60,6 +65,9 @@ class PdfParserTests(unittest.TestCase):
         self.assertEqual(questions[2].scale_max_label, "Muy fácil")
         self.assertEqual(questions[3].kind, "paragraph")
         self.assertFalse(questions[3].required)
+        self.assertEqual(questions[4].kind, "grid")
+        self.assertEqual(questions[4].options, ["1 — Bajo", "2 — Alto"])
+        self.assertEqual(questions[4].rows, ["Velocidad", "Resistencia"])
 
 
 if __name__ == "__main__":

@@ -228,6 +228,34 @@ class GeneratorTests(unittest.TestCase):
         with self.assertRaises(ConfigurationError):
             generate_responses(questions, configs, rules, 1, 1)
 
+    def test_grid_distributions_are_exact_for_each_row(self):
+        questions = [
+            Question(
+                "q1",
+                1,
+                "Métricas",
+                "grid",
+                True,
+                ["1", "2", "3"],
+                rows=["Velocidad", "Resistencia"],
+            )
+        ]
+        configs = {
+            "q1": {
+                "row_configs": {
+                    "Velocidad": {"mode": "count", "counts": {"1": 2, "2": 3, "3": 5}},
+                    "Resistencia": {"mode": "count", "counts": {"1": 6, "2": 3, "3": 1}},
+                }
+            }
+        }
+
+        profiles = generate_responses(questions, configs, [], 10, 72)
+        speed = [profile["answers"]["q1"]["grid"]["Velocidad"] for profile in profiles]
+        stamina = [profile["answers"]["q1"]["grid"]["Resistencia"] for profile in profiles]
+
+        self.assertEqual([speed.count(value) for value in ("1", "2", "3")], [2, 3, 5])
+        self.assertEqual([stamina.count(value) for value in ("1", "2", "3")], [6, 3, 1])
+
 
 if __name__ == "__main__":
     unittest.main()

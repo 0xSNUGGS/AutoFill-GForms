@@ -64,6 +64,19 @@ def _find_option(block: Any, role: str, expected: str) -> Any:
     return best
 
 
+def _find_grid_option(block: Any, row: str, column: str) -> Any:
+    candidates = block.locator('[role="radio"]:visible')
+    expected_row = normalize(row).rstrip(":")
+    expected_column = normalize(column).rstrip(":")
+    for index in range(candidates.count()):
+        candidate = candidates.nth(index)
+        actual_column = normalize(candidate.get_attribute("data-value") or "").rstrip(":")
+        aria_label = normalize(candidate.get_attribute("aria-label") or "")
+        if actual_column == expected_column and expected_row in aria_label:
+            return candidate
+    raise FormAutomationError(f"No se encontró la celda '{row}' → '{column}'.")
+
+
 def _question_score(question: Question, block_text: str) -> float:
     expected = normalize(question.title)
     actual = normalize(block_text)
@@ -82,6 +95,9 @@ def _fill_question(block: Any, question: Question, answer: dict[str, Any]) -> No
     elif question.kind == "multiple":
         for value in answer.get("selected", []):
             _find_option(block, "checkbox", value).click()
+    elif question.kind == "grid":
+        for row, column in answer.get("grid", {}).items():
+            _find_grid_option(block, row, column).click()
     else:
         value = str(answer.get("text", ""))
         fields = block.locator('textarea:visible, input[type="text"]:visible')

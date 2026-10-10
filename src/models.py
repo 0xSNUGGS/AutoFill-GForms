@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
-QUESTION_KINDS = ("single", "multiple", "linear", "text", "paragraph")
+QUESTION_KINDS = ("single", "multiple", "linear", "grid", "text", "paragraph")
 
 
 @dataclass(slots=True)
@@ -18,6 +18,7 @@ class Question:
     section: str = "General"
     scale_min_label: str = ""
     scale_max_label: str = ""
+    rows: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -34,6 +35,7 @@ class Question:
             section=str(value.get("section", "General")),
             scale_min_label=str(value.get("scale_min_label", "")),
             scale_max_label=str(value.get("scale_max_label", "")),
+            rows=[str(row) for row in value.get("rows", [])],
         )
 
 

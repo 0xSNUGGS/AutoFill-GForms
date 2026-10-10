@@ -11,8 +11,10 @@ Chromium mediante Playwright.
 
 ## Funciones principales
 
-- Interpreta preguntas desde una exportación PDF de Google Forms.
-- Detecta selección única, selección múltiple, escalas y texto libre.
+- Interpreta preguntas directamente desde un enlace público o de edición de
+  Google Forms; el PDF puede adjuntarse como referencia visual.
+- Detecta selección única, selección múltiple, escalas, cuadrículas de opción
+  múltiple y texto libre.
 - Permite revisar y corregir la estructura detectada antes de generar datos.
 - Genera un número exacto de respuestas, sin fracciones de participantes.
 - Configura distribuciones mediante gráficos, porcentajes o cantidades.
@@ -30,7 +32,8 @@ Chromium mediante Playwright.
 - Windows 10 u 11 de 64 bits.
 - Python de 64 bits, preferentemente Python 3.11 o posterior.
 - Acceso a Internet durante la instalación de dependencias y Chromium.
-- Un enlace público para responder el formulario y su exportación en PDF.
+- Un enlace público o de edición del formulario. El PDF es opcional si analiza
+  directamente el enlace.
 
 Al instalar Python en otra computadora, active la opción **Add Python to PATH**.
 No es necesario instalar Google Chrome: Playwright descarga su propio Chromium.
@@ -71,8 +74,9 @@ de Python y permite actualizar las dependencias y Chromium normalmente.
 
 1. Defina el tamaño de la muestra antes de analizar el formulario.
 2. En Google Forms, abra **Enviar** y copie el enlace para responder.
-3. Desde la vista de impresión, exporte el formulario a PDF.
-4. Cargue en FormsScript el enlace y el PDF.
+3. Opcionalmente, exporte el formulario a PDF desde la vista de impresión.
+4. Pegue el enlace y pulse **Analizar formulario**. Adjunte el PDF si desea una
+   referencia visual dentro de FormsScript.
 5. Revise las preguntas y corrija cualquier interpretación incorrecta.
 6. Configure distribuciones, textos y condiciones.
 7. Genere la vista previa y revise el resumen.
@@ -96,6 +100,11 @@ En selección múltiple, cada opción representa una tasa de selección
 independiente. Por eso la suma puede superar el 100 %. El generador valida que
 las cantidades sean compatibles con los límites mínimo y máximo de selecciones
 por participante.
+
+En una cuadrícula de opción múltiple, cada fila tiene su propia distribución
+exclusiva entre las columnas disponibles. FormsScript conserva cantidades
+exactas por fila, las resume y exporta por separado, y selecciona la celda
+correspondiente durante la automatización.
 
 ## Condiciones
 
@@ -141,7 +150,8 @@ reemplaza `FormsScript.exe` en la raíz.
 ```text
 app.py                    Interfaz y flujo principal de Streamlit
 components/               Editor gráfico de distribuciones
-src/pdf_parser.py         Interpretación de la exportación PDF
+src/form_parser.py        Análisis de la estructura pública de Google Forms
+src/pdf_parser.py         Interpretación alternativa de la exportación PDF
 src/generator.py          Generación y validación de respuestas
 src/form_runner.py        Automatización del formulario con Playwright
 src/authorization.py      Autorización local de enlaces
@@ -153,8 +163,11 @@ requirements.txt          Dependencias de Python
 
 ## Limitaciones
 
-- El PDF no contiene los identificadores internos de Google Forms; las preguntas
-  se asocian comparando sus títulos visibles. Revise siempre la estructura.
+- Durante el envío, las preguntas se asocian comparando sus títulos visibles y
+  las cuadrículas comparan tanto el nombre de la fila como el de la columna.
+  Revise siempre la estructura detectada.
+- Algunos PDF exportados son imágenes sin capa de texto. En esos casos use
+  **Analizar formulario**; el PDF seguirá disponible como referencia visual.
 - No se admiten cargas de archivos ni preguntas que exijan iniciar sesión.
 - Un cambio en la interfaz de Google Forms puede requerir actualizar los
   selectores de Playwright.
